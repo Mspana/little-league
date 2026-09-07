@@ -2,7 +2,7 @@
 
 A small, self-contained MOBA in the spirit of League of Legends that runs in the browser.
 Three lanes, a river, two jungles with camps, Dragon and Baron, turrets, inhibitors, a nexus,
-six champions with full Q/W/E/R kits and passives, summoner spells, a shop with 45 items,
+six champions with full Q/W/E/R kits and passives, summoner spells, a shop with 47 items,
 fog of war, and bot teammates and opponents with three difficulty levels.
 
 No build step and no dependencies: plain ES modules, Canvas 2D and a DOM HUD.

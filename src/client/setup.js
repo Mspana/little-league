@@ -1,5 +1,5 @@
 // Champion select and match options.
-import { CHAMPION_LIST, SUMMONER_SPELLS, SPELL_LIST } from '../sim/champions.js';
+import { CHAMPION_LIST, SPELL_LIST } from '../sim/champions.js';
 import { drawChampionIcon } from './render.js';
 
 const STORAGE_KEY = 'little-league-setup';

@@ -404,7 +404,6 @@ function retreatPoint(game, c, ctx) {
 
 function laneTargets(game, c, lane) {
   const team = c.team;
-  const enemy = enemyOf(team);
   const L = game.laneLength(lane);
   let allyFront = -1;
   let enemyFront = Infinity;
@@ -565,8 +564,9 @@ function jungleAction(game, c, ctx) {
   if (!camp) {
     const dragon = game.camps.find((k) => k.id === 'dragon');
     const baron = game.camps.find((k) => k.id === 'baron');
-    if (baron.alive && c.level >= 12 && ctx.allyChamps.length >= 2 && ctx.hpPct > 0.6) camp = baron;
-    else if (dragon.alive && c.level >= 6 && ctx.hpPct > 0.6 && (c.level >= 9 || ctx.allyChamps.length >= 1)) camp = dragon;
+    const safe = (k) => enemiesNearPoint(game, c.team, k.x, k.y, 1400) === 0;
+    if (baron.alive && c.level >= 12 && ctx.allyChamps.length >= 2 && ctx.hpPct > 0.6 && safe(baron)) camp = baron;
+    else if (dragon.alive && c.level >= 6 && ctx.hpPct > 0.6 && (c.level >= 9 || ctx.allyChamps.length >= 1) && safe(dragon)) camp = dragon;
     if (!camp) {
       let bestD = Infinity;
       for (const k of game.camps) {
@@ -581,16 +581,8 @@ function jungleAction(game, c, ctx) {
   }
   if (camp) {
     b.camp = camp;
-    let mon = null;
-    let bestD = Infinity;
-    for (const m of camp.monsters) {
-      if (!m.alive || m.resetting) continue;
-      const d = c.distTo(m);
-      if (d < bestD) {
-        bestD = d;
-        mon = m;
-      }
-    }
+    const mon = nearestCampMonster(c, camp);
+    const bestD = mon ? c.distTo(mon) : Infinity;
     ctx.target = mon;
     if (mon && bestD < 1500) orderAttack(game, c, mon);
     else orderMove(game, c, camp.x, camp.y);
@@ -620,9 +612,55 @@ function jungleAction(game, c, ctx) {
   laneAction(game, c, ctx, lane);
 }
 
+function enemiesNearPoint(game, team, x, y, r) {
+  let n = 0;
+  for (const e of game.champions) if (e.alive && e.team !== team && e.visibleTo[team] && Math.hypot(e.x - x, e.y - y) < r) n++;
+  return n;
+}
+
+function nearestCampMonster(c, camp) {
+  let mon = null;
+  let bestD = Infinity;
+  for (const m of camp.monsters) {
+    if (!m.alive || m.resetting) continue;
+    const d = c.distTo(m);
+    if (d < bestD) {
+      bestD = d;
+      mon = m;
+    }
+  }
+  return mon;
+}
+
+// Team objectives: once the team groups up, Baron (and Dragon) are taken together.
+function objectiveAction(game, c, ctx) {
+  const baron = game.camps.find((k) => k.id === 'baron');
+  const dragon = game.camps.find((k) => k.id === 'dragon');
+  const aliveAllies = game.champions.filter((a) => a.team === c.team && a.alive && a !== c).length;
+  const consider = [];
+  if (baron.alive && c.level >= 11 && aliveAllies >= 2 && ctx.hpPct > 0.5) consider.push({ camp: baron, need: 2 });
+  if (dragon.alive && c.level >= 7 && aliveAllies >= 1 && ctx.hpPct > 0.5) consider.push({ camp: dragon, need: 1 });
+  for (const { camp, need } of consider) {
+    if (enemiesNearPoint(game, c.team, camp.x, camp.y, 1400) > 0) continue;
+    const alliesAtPit = game.champions.filter((a) => a.team === c.team && a.alive && a !== c && Math.hypot(a.x - camp.x, a.y - camp.y) < 1000).length;
+    const myDist = c.distToPoint(camp.x, camp.y);
+    if (myDist > 3500 && alliesAtPit === 0) continue;
+    const mon = nearestCampMonster(c, camp);
+    if (!mon) continue;
+    ctx.target = mon;
+    if (alliesAtPit >= need && myDist < 1200) orderAttack(game, c, mon);
+    else orderMove(game, c, camp.x, camp.y);
+    useAbilities(game, c, ctx);
+    usePotion(game, c, ctx);
+    return true;
+  }
+  return false;
+}
+
 function groupAction(game, c, ctx) {
   const b = c.bot;
   const enemy = enemyOf(c.team);
+  if (objectiveAction(game, c, ctx)) return;
   let lane = null;
   let best = -Infinity;
   for (const ln of LANE_NAMES) {
@@ -693,6 +731,7 @@ export function updateBot(game, c, dt) {
     case 'group':
       return groupAction(game, c, ctx);
     default:
+      if (game.time > TIMING.groupTime && objectiveAction(game, c, ctx)) return;
       return laneAction(game, c, ctx, b.lane);
   }
 }

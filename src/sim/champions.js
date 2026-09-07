@@ -1,6 +1,6 @@
 // Champion roster: base stats, passives, four abilities each, bot hints and item builds.
 import {
-  enemiesNear, alliesNear, nearest, lowestHp, clampAim, aimDir, face, skillshot, fanSkillshots, damageArea,
+  enemiesNear, alliesNear, lowestHp, clampAim, aimDir, face, skillshot, fanSkillshots, damageArea,
   applySlow, applyStun, applyRoot, applySilence, applyTaunt, dash, blink, lineTargets, ringFx, coneFx, beamFx,
 } from './abilities.js';
 import { dealDamage, healUnit, isTargetable } from './combat.js';

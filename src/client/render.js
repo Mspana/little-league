@@ -1,12 +1,11 @@
 // Canvas renderer: terrain, structures, units, projectiles, effects, fog of war and minimap.
-import { MAP_SIZE, TEAM, TIMING, TOWER } from '../sim/constants.js';
+import { MAP_SIZE } from '../sim/constants.js';
 import { TEAM_COLORS } from '../sim/game.js';
 import { makeRng } from '../sim/rng.js';
 import { formatTime } from '../sim/math.js';
 
 const TAU = Math.PI * 2;
 const TEAM_LIGHT = ['#93c5fd', '#fca5a5'];
-const TEAM_DARK = ['#1d4ed8', '#b91c1c'];
 
 function circle(ctx, x, y, r, fill, stroke, lw) {
   ctx.beginPath();
@@ -276,7 +275,7 @@ export class Renderer {
 
   // ------------------------------------------------------------ frame
   render(dt) {
-    const { ctx, camera, game } = this;
+    const { ctx, game } = this;
     this.time += dt;
     const w = this.canvas.width;
     const h = this.canvas.height;
@@ -795,9 +794,6 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText(u.name + (u.isPlayer ? ' (you)' : ''), u.x, y - 6);
     } else if (u.kind === 'minion') {
-      if (u.hp >= u.maxHp && !u.moved && u.attackCd <= 0) {
-        // still show a compact bar
-      }
       const w = 46;
       const h = 5;
       const x = u.x - w / 2;

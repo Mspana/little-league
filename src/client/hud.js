@@ -1,6 +1,6 @@
 // DOM heads-up display: bars, abilities, items, shop, scoreboard, kill feed, pause and end screens.
 import { ITEMS, ITEM_LIST, ITEM_CATEGORIES, describeItemStats } from '../sim/items.js';
-import { SUMMONER_SPELLS, CHAMPIONS } from '../sim/champions.js';
+import { SUMMONER_SPELLS } from '../sim/champions.js';
 import { formatTime } from '../sim/math.js';
 import { xpToNextLevel } from '../sim/stats.js';
 import { drawChampionIcon } from './render.js';
@@ -334,7 +334,7 @@ export class Hud {
             this.announce(ev.firstBlood ? 'FIRST BLOOD!' : 'You killed ' + ev.victimName, 'gold');
             this.app.sfx.play('kill');
           } else if (ev.victimIsPlayer) {
-            this.announce('You have been slain', 'red');
+            // the death overlay already says it
           } else if (ev.firstBlood) {
             this.announce('FIRST BLOOD', ev.killerTeam === p.team ? 'blue' : 'red');
             this.app.sfx.play('announce');

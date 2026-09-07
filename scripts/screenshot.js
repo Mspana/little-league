@@ -38,6 +38,9 @@ const advance = (seconds) => page.evaluate((s) => {
   for (let i = 0; i < Math.round(s * 60); i++) g.update(1 / 60);
 }, seconds);
 
+await page.addInitScript(() => {
+  import('/src/sim/combat.js').then((m) => (window.__dealDamage = m.dealDamage));
+});
 await page.goto(`http://localhost:${PORT}/`);
 await page.waitForSelector('#startBtn');
 await shot('01-setup');
@@ -60,8 +63,99 @@ await page.keyboard.down('Tab');
 await page.waitForTimeout(300);
 await shot('06-scoreboard');
 await page.keyboard.up('Tab');
+// --- interaction checks: the player fights a minion wave through real mouse/keyboard input
+const checks = [];
+const check = (name, ok, detail = '') => {
+  checks.push({ name, ok });
+  console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` (${detail})` : ''}`);
+};
+await page.evaluate(() => {
+  const g = window.app.game;
+  const p = g.player;
+  g.stopUnit(p);
+  // stand in the mid lane on our side and wait for the enemy wave
+  const spot = g.lanePoint(p.team, 'mid', 3250);
+  p.x = spot.x;
+  p.y = spot.y;
+  window.app.camera.locked = true;
+});
+// wait (in simulated time) until an enemy minion walks into view
+let target = null;
+for (let i = 0; i < 24 && !target; i++) {
+  await advance(5);
+  await page.waitForTimeout(60);
+  target = await page.evaluate(() => {
+    const g = window.app.game;
+    const p = g.player;
+    let best = null;
+    for (const m of g.minions) {
+      if (m.team === p.team || !m.alive || !m.visibleTo[p.team]) continue;
+      if (!best || m.distTo(p) < best.distTo(p)) best = m;
+    }
+    if (!best || best.distTo(p) > 650) return null;
+    const s = window.app.camera.worldToScreen(best.x, best.y);
+    return { id: best.id, x: s.x, y: s.y, hp: best.hp, dist: Math.round(best.distTo(p)) };
+  });
+}
+check('an enemy minion is visible near the player', !!target, target ? `distance ${target.dist}` : 'none');
+if (target) {
+  await page.mouse.click(target.x, target.y, { button: 'right' });
+  await page.waitForTimeout(100);
+  const order = await page.evaluate(() => (window.app.game.player.order ? window.app.game.player.order.type : null));
+  check('right-clicking an enemy issues an attack order', order === 'attack', `order=${order}`);
+  await advance(6);
+  const after = await page.evaluate((id) => {
+    const g = window.app.game;
+    const m = g.unitById(id);
+    return { alive: !!(m && m.alive), hp: m ? m.hp : 0, cs: g.player.cs, gold: g.player.gold };
+  }, target.id);
+  check('the attacked minion took damage or died', !after.alive || after.hp < target.hp, `alive=${after.alive} hp=${Math.round(after.hp)} cs=${after.cs}`);
+}
+await shot('06b-fighting');
+// abilities: W is learned first by Aria's skill order. Make sure the player is alive and healthy first.
+const castResult = await page.evaluate(() => {
+  const g = window.app.game;
+  const p = g.player;
+  if (!p.alive) g.respawnChampion(p);
+  const spot = g.lanePoint(p.team, 'mid', 3000);
+  p.x = spot.x;
+  p.y = spot.y;
+  p.hp = p.maxHp;
+  p.mana = p.maxMana;
+  p.abilities.W.cd = 0;
+  return { rank: p.abilities.W.rank, projectilesBefore: g.projectiles.filter((q) => q.source === p && !q.target).length };
+});
+await page.mouse.move(1200, 200);
+await page.keyboard.press('w');
+await page.waitForTimeout(50);
+const afterCast = await page.evaluate(() => ({ projectiles: window.app.game.projectiles.filter((q) => q.source === window.app.game.player && !q.target).length, cd: window.app.game.player.abilities.W.cd }));
+check('pressing W fires Volley toward the cursor', castResult.rank > 0 && afterCast.cd > 0 && afterCast.projectiles > castResult.projectilesBefore, `rank=${castResult.rank} projectiles=${afterCast.projectiles} cd=${afterCast.cd.toFixed(1)}`);
+await page.waitForTimeout(400);
+await shot('06c-volley');
+// recall (from a quiet spot in our jungle)
+await page.evaluate(() => {
+  const g = window.app.game;
+  const p = g.player;
+  if (!p.alive) g.respawnChampion(p);
+  p.x = 1600;
+  p.y = 3600;
+  p.hp = p.maxHp;
+  g.stopUnit(p);
+});
+await page.keyboard.press('b');
+await page.waitForTimeout(50);
+const recalling = await page.evaluate(() => !!window.app.game.player.recall);
+check('pressing B starts a recall', recalling);
+await advance(9);
+const home = await page.evaluate(() => {
+  const g = window.app.game;
+  const p = g.player;
+  const f = g.map.fountains[p.team];
+  return Math.round(p.distToPoint(f.x, f.y));
+});
+check('the recall brought the player to the fountain', home < 300 || home > 5000, `distance to fountain ${home}`);
 // jump to a lane fight in the mid game
-await advance(420);
+await advance(380);
 await page.evaluate(() => {
   const g = window.app.game;
   const p = g.player;
@@ -79,6 +173,29 @@ await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
 await shot('08-pause');
 await page.keyboard.press('Escape');
+// death overlay
+await page.evaluate(() => {
+  const g = window.app.game;
+  const p = g.player;
+  const enemy = g.champions.find((c) => c.team !== p.team);
+  p.hp = 1;
+  enemy.x = p.x + 100;
+  enemy.y = p.y;
+  g.updateVisibility();
+  enemy.ensureStats();
+  // let the enemy finish the player through the normal damage pipeline
+  window.__dealDamage(g, enemy, p, 1e6, 'true', {});
+});
+await page.waitForTimeout(300);
+await shot('09-death');
+const deathShown = await page.evaluate(() => !document.getElementById('death').hidden && !window.app.game.player.alive);
+check('the death overlay appears when the player dies', deathShown);
+// end screen
+await page.evaluate(() => window.app.game.endGame(0));
+await page.waitForTimeout(400);
+await shot('10-victory');
+const endShown = await page.evaluate(() => !document.getElementById('end').hidden && document.querySelector('#end h1').textContent);
+check('the end screen appears when the game ends', endShown === 'VICTORY', `title=${endShown}`);
 await page.waitForTimeout(2500);
 const info = await page.evaluate(() => {
   const g = window.app.game;
@@ -86,6 +203,8 @@ const info = await page.evaluate(() => {
 });
 console.log(JSON.stringify(info, null, 2));
 console.log(errors.length ? `Console problems:\n${errors.join('\n')}` : 'No console errors.');
+const failed = checks.filter((c) => !c.ok);
+console.log(`${checks.length - failed.length}/${checks.length} interaction checks passed`);
 await browser.close();
 server.kill();
-process.exit(errors.some((e) => e.startsWith('[pageerror]')) ? 1 : 0);
+process.exit(errors.some((e) => e.startsWith('[pageerror]')) || failed.length ? 1 : 0);

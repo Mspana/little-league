@@ -1,13 +1,11 @@
 // The simulation. Pure logic: no DOM, no rendering. Runs in the browser and in Node.
-import { MAP_SIZE, TEAM, TIMING, GOLD, XP, SIGHT, TOWER, INHIBITOR, NEXUS, MINION, FOUNTAIN, MAX_LEVEL, enemyOf } from './constants.js';
+import { MAP_SIZE, TEAM, TIMING, GOLD, XP, SIGHT, TOWER, INHIBITOR, NEXUS, MINION, FOUNTAIN, enemyOf } from './constants.js';
 import { createMap, structureRadius, LANE_NAMES } from './map.js';
 import { makeRng } from './rng.js';
-import { Champion, Minion, Structure, Monster, Projectile, resetIds } from './entities.js';
+import { Champion, Minion, Structure, Monster, resetIds } from './entities.js';
 import { CHAMPIONS, SUMMONER_SPELLS } from './champions.js';
 import { ITEMS } from './items.js';
-import {
-  dealDamage, healUnit, restoreMana, tryStartAttack, cancelAttack, updateAttackWindup, isTargetable, grantGold, grantXp, shareXp, hasPassive,
-} from './combat.js';
+import { dealDamage, healUnit, tryStartAttack, cancelAttack, updateAttackWindup, isTargetable, grantGold, shareXp, hasPassive } from './combat.js';
 import { cooldownMultiplier } from './stats.js';
 import { closestOnPolyline, pointAlongPolyline, polylineLength } from './math.js';
 import { updateBot, createBotState, buildRosters } from './ai.js';
@@ -607,9 +605,14 @@ export class Game {
     this.runTimers();
     this.updateSpawns();
     this.updateVisibility();
-    for (const c of this.champions) this.updateChampion(c, dt);
-    for (const m of this.minions) if (m.alive) this.updateMinion(m, dt);
-    for (const s of this.structures) this.updateStructure(s, dt);
+    // Alternate the processing order every tick so neither team consistently acts first.
+    const rev = (this.tick & 1) === 1;
+    const champs = rev ? this.champions.slice().reverse() : this.champions;
+    const minions = rev ? this.minions.slice().reverse() : this.minions;
+    const structures = rev ? this.structures.slice().reverse() : this.structures;
+    for (const c of champs) this.updateChampion(c, dt);
+    for (const m of minions) if (m.alive) this.updateMinion(m, dt);
+    for (const s of structures) this.updateStructure(s, dt);
     for (const m of this.monsters) if (m.alive) this.updateMonster(m, dt);
     this.updateMovement(dt);
     this.updateProjectiles(dt);
@@ -647,11 +650,6 @@ export class Game {
     }
     for (const camp of this.camps) {
       if (!camp.alive && this.time >= camp.respawnAt) this.spawnCamp(camp);
-    }
-    for (const s of this.structures) {
-      if (s.stype === 'inhibitor' && !s.alive) {
-        s.respawnTimer -= 0;
-      }
     }
   }
 

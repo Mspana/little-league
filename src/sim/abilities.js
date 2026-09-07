@@ -17,7 +17,7 @@ export function unitsNear(game, x, y, r, pred) {
 
 // Enemies of `team` inside a circle. By default structures are excluded and only visible/targetable units count.
 export function enemiesNear(game, team, x, y, r, opts = {}) {
-  return unitsNear(game, x, y, r + (opts.edge ? 0 : 0), (u) => {
+  return unitsNear(game, x, y, r, (u) => {
     if (u.team === team) return false;
     if (u.kind === 'structure' && !opts.structures) return false;
     if (opts.championsOnly && u.kind !== 'champion') return false;
@@ -119,9 +119,8 @@ export function fanSkillshots(game, caster, aim, count, spreadRad, props) {
 
 export function damageArea(game, src, x, y, r, amount, type, opts = {}) {
   const targets = enemiesNear(game, src.team, x, y, r, { ignoreVision: true, championsOnly: !!opts.championsOnly, structures: !!opts.structures });
-  let total = 0;
   for (const u of targets) {
-    total += dealDamage(game, src, u, amount, type, { ability: true, ...opts });
+    dealDamage(game, src, u, amount, type, { ability: true, ...opts });
     if (opts.onEach) opts.onEach(u);
   }
   return targets;

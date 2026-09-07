@@ -31,6 +31,9 @@ export class Input {
     document.addEventListener('mouseleave', () => (this.mouse.inside = false));
     document.addEventListener('mouseenter', () => (this.mouse.inside = true));
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('contextmenu', (e) => {
+      if (this.game) e.preventDefault();
+    });
     this.canvas.addEventListener('mousedown', (e) => {
       if (!this.game) return;
       this.app.sfx.resume();
