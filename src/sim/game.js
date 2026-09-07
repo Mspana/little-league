@@ -284,7 +284,7 @@ export class Game {
           this.teamStats[team].barons++;
           for (const c of this.champions) {
             if (c.team !== team) continue;
-            c.addBuff({ id: 'baron_buff', name: 'Hand of Baron', duration: 180, mods: { ad: 30, ap: 45, hpRegen: 3, manaRegen: 3 }, visual: 'baron' });
+            c.addBuff({ id: 'baron_buff', name: 'Hand of Baron', duration: 180, mods: { ad: 24, ap: 36, hpRegen: 3, manaRegen: 3 }, visual: 'baron' });
           }
           for (const m of this.minions) if (m.alive && m.team === team) this.empowerMinion(m);
           this.pushEvent({ type: 'epic', what: 'baron', team, killerName: creditChamp ? creditChamp.name : null });
@@ -307,7 +307,7 @@ export class Game {
   }
 
   empowerMinion(m) {
-    m.addBuff({ id: 'baron_minion', name: 'Empowered', duration: 180, mods: { hpPct: 0.5, adPct: 0.5, armor: 20, mr: 20 }, visual: 'baron' });
+    m.addBuff({ id: 'baron_minion', name: 'Empowered', duration: 180, mods: { hpPct: 0.3, adPct: 0.3, armor: 12, mr: 12 }, visual: 'baron' });
     m.ensureStats();
   }
 
@@ -1178,7 +1178,11 @@ export class Game {
       p.x += p.dx * step;
       p.y += p.dy * step;
       p.traveled += step;
-      // sweep test against enemies along the segment
+      // sweep test against enemies along the segment, nearest along the path first
+      const abx = p.x - sx;
+      const aby = p.y - sy;
+      const l2 = abx * abx + aby * aby;
+      const hits = [];
       for (const u of this.units) {
         if (!u.alive || u.team === p.team || p.hitIds.has(u.id)) continue;
         if (u.team > 1 && u.resetting) continue;
@@ -1187,15 +1191,15 @@ export class Game {
         if (u.untargetable) continue;
         if (p.filter && !p.filter(u)) continue;
         const r = p.hitRadius + u.radius;
-        // distance from unit to segment (sx,sy)-(p.x,p.y)
-        const abx = p.x - sx;
-        const aby = p.y - sy;
-        const l2 = abx * abx + aby * aby;
         let t = 0;
         if (l2 > 0) t = Math.max(0, Math.min(1, ((u.x - sx) * abx + (u.y - sy) * aby) / l2));
         const cx = sx + abx * t;
         const cy = sy + aby * t;
         if ((u.x - cx) * (u.x - cx) + (u.y - cy) * (u.y - cy) > r * r) continue;
+        hits.push({ u, t });
+      }
+      if (hits.length > 1) hits.sort((a, b) => a.t - b.t);
+      for (const { u } of hits) {
         p.hitIds.add(u.id);
         p.hits++;
         if (p.onHit) p.onHit(this, u, p);

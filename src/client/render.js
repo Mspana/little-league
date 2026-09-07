@@ -651,7 +651,6 @@ export class Renderer {
       ctx.restore();
     }
     if (u.windup && u.windup.target) {
-      const t = u.windup.target;
       const k = 1 - u.windup.remaining / u.windup.total;
       if (!u.ranged) {
         ctx.save();

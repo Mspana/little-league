@@ -346,3 +346,28 @@ test('orders: move, attack and attack-move drive the champion', () => {
   run(game, 3);
   assert.ok(enemy.hp < enemy.maxHp, 'attack order walks into range and shoots');
 });
+
+test('skillshots hit the closest enemy along their path first', () => {
+  const game = newGame({ autoLevel: false, playerChampion: 'lyra' });
+  freezeBots(game);
+  const p = game.player;
+  game.levelUpAbility(p, 'Q');
+  const reds = game.champions.filter((c) => c.team === TEAM.RED);
+  // in the river, away from every turret and fountain; the later-created champion is the closer one
+  p.x = 1900;
+  p.y = 1900;
+  const near = reds[3];
+  const far = reds[0];
+  near.x = 2200;
+  near.y = 2200;
+  far.x = 2500;
+  far.y = 2500;
+  game.updateVisibility();
+  const nearHp = near.hp;
+  const farHp = far.hp;
+  assert.ok(game.castAbility(p, 'Q', { x: 2800, y: 2800 }).ok);
+  // step in large increments so both units fall inside a single sweep segment
+  for (let i = 0; i < 4; i++) game.update(0.5);
+  assert.ok(near.hp < nearHp, 'the nearer champion is hit');
+  assert.equal(far.hp, farHp, 'the bolt stops at the first target');
+});

@@ -641,9 +641,11 @@ function objectiveAction(game, c, ctx) {
   if (baron.alive && c.level >= 11 && aliveAllies >= 2 && ctx.hpPct > 0.5) consider.push({ camp: baron, need: 2 });
   if (dragon.alive && c.level >= 7 && aliveAllies >= 1 && ctx.hpPct > 0.5) consider.push({ camp: dragon, need: 1 });
   for (const { camp, need } of consider) {
-    if (enemiesNearPoint(game, c.team, camp.x, camp.y, 1400) > 0) continue;
+    const enemiesAtPit = enemiesNearPoint(game, c.team, camp.x, camp.y, 1400);
     const alliesAtPit = game.champions.filter((a) => a.team === c.team && a.alive && a !== c && Math.hypot(a.x - camp.x, a.y - camp.y) < 1000).length;
     const myDist = c.distToPoint(camp.x, camp.y);
+    // contest the pit only when the numbers are on our side
+    if (enemiesAtPit > 0 && (enemiesAtPit > alliesAtPit + 1 || !ctx.fightFavorable)) continue;
     if (myDist > 3500 && alliesAtPit === 0) continue;
     const mon = nearestCampMonster(c, camp);
     if (!mon) continue;
